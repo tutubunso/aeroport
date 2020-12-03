@@ -1,0 +1,70 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html>
+<head>
+	<title>suggestion</title>
+</head>
+<body>
+
+
+
+	{% if contact_form %}
+		<form class="form-control" method="POST" action="{% url 'contact' %}">
+			{% csrf_token %}
+			{{ contact_form.as_p }}
+			<input type="submit" value="Envoyer"><br>
+			<button><a href="{% url 'home' %}">accueil</button><br>
+			<button><a href="{% url 'paiement' %}">payer</a></button>
+		</form>
+	
+	{% endif %}
+
+
+	{% if events_form %}
+		<form class="form-control" method="POST" action="{% url 'events' %}">
+			{% csrf_token %}
+			{{ events_form.as_p }}
+			<input type="submit" value="poster"><br>
+			<button><a href="{% url 'home' %}">accueil </button><br>
+			<button><a href="{% url 'contact' %}">laissez un message</button>	
+	
+		</form>
+	
+	
+	{% endif %}
+	<strong>{{ text1 }}</strong>
+	<strong>{{ number }}</strong>
+
+	{% if paiement_form %}
+		<form class="form-control" method="POST" action="{% url 'paiement' %}">
+			{% csrf_token %}
+			{{ paiement_form.as_p }}
+			<input type="submit" value="envoyer"><br>
+			<button><a href="{% url 'home' %}">accueil</button><br>
+				
+	
+		</form>
+	
+	
+	{% endif %}
+
+	<strong>{{ text2 }}</strong>
+	<strong>{{ number2 }}</strong>
+
+	{% if paiement_form %}
+		<form class="form-control" method="POST" action="{% url 'paiement' %}">
+			{% csrf_token %}
+			{{ paiement_form.as_p }}
+			<input type="submit" value="envoyer"><br>
+			<button><a href="{% url 'home' %}">accueil</button><br>
+				
+	
+		</form>
+	
+	
+	{% endif %}
+	
+    
+
+</body>

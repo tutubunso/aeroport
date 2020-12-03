@@ -1,0 +1,418 @@
+a) Configuration d'une addresse ip statique
+--------------------------------------------
+
+* Verifier l'adresse ip d'une carte	 
+	ip a
+* Attribuer une adresse IP statique
+	-> cd /etc/netplan/
+	-> ls
+	-> sudo nano 00-installer-config.yaml ! sudo 	parce que on veux modeifier un fichier system
+
+		enps03:
+			dhcp4: true 
+				// Nessecite une adresse IP en provenance d'un serveur dhcp externe
+				// c a d que la machine est configuré coe un client DHCP
+				//s'il est a NO : pour attribuer une addresse IP statique
+
+			addresses:[192.168.3.2/24]
+				
+
+		sudo netplan try
+			// Verifier si la configurationa ete 					modifie
+
+		sudo netplan apply
+			//Appliquer les modifications
+
+* retourner a la configuration initale
+	il faut simplement effecer les lignes ajoute dans 00-installer-config.yaml
+
+b) Configure notre serveur DNS
+------------------------------
+
+	Faire la correspondance entre les addresse IP et leur noms de domaine
+
+	?** Le logiciel utilisé pour assurer le service DNS ? bind9
+
+	**Mettre a jour les paquets
+		-> sudo su 
+			// se connecter en tant qu'administrateur
+
+		-> apt install bind9
+
+	** Verifier l'etat du serveur
+		-> systemctl status bind9
+
+	* Configurer notre propre domaine
+	#################################
+
+		* Aller dans le repertoire de configuration
+		-------------------------------------------
+
+			-> cd /etc/bind/
+			-> ls
+			-> on ouvre named.conf.local pour declare une zone
+
+		* Declaration d'une zone
+		-------------------------
+			-> nano named.conf.local
+				Zone "ult.lac" 
+
+					//declaration de domaine ou //zone
+
+					{
+					type master; // definition 
+					file "/etc/bind/db.ult.lac"; 
+
+					// fichier dans le quel on va //declarer les fichier DNS
+				};
+		*Creation du fichier pour la zone (db.ult.lac)
+		----------------------------------------------
+
+			-> nano db.ult.lac
+
+				$TTL 1d // Pour dire que le temps avant les mises a jour est de 1 jour
+				$ORIGIN ult.lac. //Pour indique que tous les fichier declarer vont se terminer par ult.lac.
+				@ IN SOA info compte(
+
+					2018094 ;serial	//dire que a 		chaque changement de 		configuration
+					12h		;refresh
+					15m		;retry
+					3w		;expire //conf expire 
+					2h		;minimum
+				)
+
+				@ IN A 192.168.3.2  // Enregistement de type Adresse @-> ultlac
+				@ IN NS info 	// Le domaine pointe sur la machine info NS-> Name server : Declaration de serveur DNS
+				info IN A 19
+				hhgervice mail 10 priorite de 10
+
+				//
+	*Verifier si les configuration sont ok
+	----------------------------------------
+		->named-checkzone ult.lac db.ult.lac
+
+	*Redemarer le serveur
+	---------------------
+		->systemctl restart bind9
+
+	* Tester le serveur
+	-------------------
+
+		-> ping ult.lac
+		-> dig ult.lac
+
+	//Ca ne marche pas meme apres avoir 
+	//Parce que on a pas encore declare notre serveru dans l'ordre de resolution systeme
+
+	SOLUTION : 
+
+			* Declarer le serveur dans l'ordre de resolution system
+			-------------------------------------------------------
+				-> nano /etc/sytemd/resolved.conf
+					DNS = 192.168.3.2
+				-> reboot
+
+			* Verification de la resolution
+			--------------------------------
+				-> sudo su
+				-> systemd-resolve --status
+
+c Configuration d'un service DHCP
+#################################
+
+	* Mettre q jour les paquets
+	---------------------------
+		-> apt update
+
+	* Installer le paquet
+	---------------------
+		-> apt install isc-dhcp-server
+
+	* Verifier l'etat duserveur
+	----------------------------
+		-> systemctl status isc.dhcp.server
+			// Status failed parce que il n'y a rien docn il faut configurer
+
+			SOLUTION : 
+
+				* Aller dans le repertoire de configuration
+				------------------------------------------
+					-> cd /etc/dhcp
+					-> ls
+					-> nano dhcpd.conf
+						decommenter le # sur autoritative pour declarer le serveur en tant que autoriatire
+				
+				* Declarer le reseau
+				--------------------
+					TOUJOUR _S DANS LE FICHIER DHCPD.CONFIG TOUT EN BAS VOUS ECRIVEZ CES LIGNES : 
+
+				subnet 192.168.3.0 netmask 255.255.255.0{
+					range 192.168.3.5 192.168.3.20;
+					option routers 192.168.3.1;
+					option domain-name "ult.lac";
+					option domain-name-servers 192.168.3.2;
+					}
+
+				}
+
+	*Redemarer le serveur a chaque fois qu'on vient de le configurer
+	----------------------------------------------------------------
+
+		->systemctl restart isc-dhcp-server
+		 no server and client for same service
+
+		 SOLUTION : remettre la carte a une configuration statique
+		 	-> cd /etc/netplan/
+		 	-> nano 00.installer.config.yaml
+
+		 APRES
+			 -> systemctl restart isc-dhcp-server
+			 -> systemctl status isc-dhcp-server
+		
+
+3 SERVICE SAMBA
+################
+
+	* Mettre a jour les paquets
+	----------------------------
+		->apt update
+
+	*Installer les paquets
+	-----------------------
+		-> apt install samba
+
+	*Creaction le repertoire
+	-------------------------
+		-> mkdir -p /ult/lac
+
+	*	Changer les droits d'access
+	--------------------------------
+
+		-> chmod 0777 /ult/lac
+
+	* Aller dans le repertoire de configuration
+	-------------------------------------------
+		-> cd /etc/samba
+		-> ls
+		-> nano smb.conf
+
+			DESCENDRE AU FOND
+
+			[intwari]
+			comment = Mushaka mwokora
+			path = /ult/lac
+			read only = no
+			guest ok = no
+			create mask = 0777
+	* Redemarer le service
+	----------------------
+		-> service smbd restart
+	* Verifier l'etat du service
+	----------------------------
+		-> service smbd status
+
+	* Creation d'un utilisateur system
+	-----------------------------------
+		-> adduser jules
+	*Creation d'un utilisateur Samba
+	--------------------------------
+		-> smbpasswd -a jules
+
+	Samba peut partager les imprimantes mais ne peut pas gerer les impressions pour ce fait il faut configurer le service  cups lui qui peut gerer les impressions
+
+
+4) SERVICE CUPS
+----------------
+	* Mettre a jour les paquets
+	---------------------------
+		->apt update
+		->apt install cups
+
+	* Aller dans le repertoire de configuration
+	-------------------------------------------
+		-> cd /etc/cups/
+		-> ls
+		-> nano 
+			LIGNE listen
+				EFFACER TOUT
+					ECRIRE port 631
+			LIGNE browsing off
+				on le met sur "on"
+			LIGNE <location />
+					order, allow, deny
+				  <location>
+
+				AJOUTER Allow @LOCAL
+			  	FICHIER DEVIENS 
+			  		<location />
+						order, allow, deny
+						Allow @LOCAL
+					 <location>
+			LIGNE <location /admin >
+					order, allow, deny
+				  </location>
+
+				  FICHIER DEVIENS 
+				  	<location /admin >
+						order, allow, deny
+						AuthType Default
+						Require valid-user
+						Allow @LOCAL
+				  	</location>
+
+	* Redemarer le serveur
+	----------------------
+		->systemctl restart cups
+
+	* Installatio des pillotes des imprimantes
+	------------------------------------------
+		a) HP
+		-----
+			-> apt install hplip
+		b) pilote generique
+		-------------------
+			-> apt install printer-driver-gutenprint
+
+	* Ajouter l'utilisateur au groupe d'administration
+	---------------------------------------------------
+		-> usermod -aG lpadmin jules
+
+	* Creer un fichier pour le test
+	-------------------------------
+		-> nano buja.txt
+
+	* Imprimer le fichier
+	--------------------
+		-> lp buja.txt //commande pour imprimer
+	
+	* Partage d'imprimante via Samba
+	--------------------------------
+
+		a) Via Samba
+		------------
+			-> cd /etc/samba
+			-> nano smb.conf
+				aller dnas la section printers
+					[printers]
+						browsable = yes
+						guest ok = yes
+				aller dans la section global
+					[global]
+						rpc_server:spoolss = external
+						rpc_deamon:spoolssd = fork
+
+
+		b) via IPP
+		----------
+
+			->apt install avahi-daemon
+			->apt install cups-ipp-utils
+			->systemctl start avahi-daemon
+			->systemctl enable avahi-daemon
+
+5 SERVICE FTP
+#############
+
+	*Mettre a jour les paquets
+	--------------------------
+		-> apt update
+		-> apt install vsftpd
+
+	* Aller dans le repertoire de configuration
+	-------------------------------------------
+		->cd /etc
+	* Sauvegarder le fichier de configuration
+	------------------------------------------
+		-> mv vsftpd.conf vsftpd.conf.bak
+			//On l'a supprimé en le sauvegardant
+
+	* Creation de du fichier de configuration
+	------------------------------------------
+		-> nano vsftpd.conf 
+			listen = yes // Indiquer les serveur qu'il est autoritaire
+			connect_from_port_20 = YES
+			anonymous_enable = NO
+				//anonyyme est un utilisateur par defaut de FTP qui n'as pas de lot de passse
+
+			write_enable = YES
+			local_enable = YES
+
+			allow_writable_chroot = YES
+			secure_chroot_dir = /var/run/vsftpd/empty
+			userlist_enable = YES
+				//Pas n'importe quel utilisateur masi une liste d'utilisateur qui est autorisé
+
+			userlist_file = /etc/vsftpd.userlist
+			userlist_deny = NO
+
+	* Creation de la liste des utilisateurs
+	---------------------------------------
+		-> nano vsftpd.userlist
+			AJOUTER jules
+
+	* Pour Tester il faut installer FileZilla ou Utiliser l'explorateur windows
+
+
+6 SERVICE SSH
+-------------
+
+	* Mettre ajour les paquets
+	--------------------------
+		->apt update
+		->apt install openssh-server
+
+	// La configuration par defaut marche bien
+
+	*Tellecharger Putty sur Windows pour se connecter
+	------------------------------------------------
+
+	Ajouter l'addresse ip du serveur puis OK sur WIN dnas putty
+
+
+7 SERVICE MAIL
+--------------
+
+	* Mise a jour et Installer le paquet
+	------------------------------------
+
+		->apt update
+		-> apt install postfix
+
+			=> Internet site
+			=> ult.lac //Le service mail configuré
+
+	* QConfigurer le service DNS pour le site
+		=> deja fait
+
+	* Ajouter un utilisateur dans le groupe de messagerie
+	-----------------------------------------------------
+		// Les utilisateur qui se trouvent dans le groupe mail peuvent envoyer les messages
+
+		-> usermod -aG mail jules
+
+
+
+
+TP : CONFIGURATION D'UN CONTROLEUR DE DOMAINE
+#############################################
+
+1 Mise a jour du paquet
+------------------------
+
+	-> apt update
+
+2 Modifier le nom de la machine
+-------------------------------
+	-> nano /etc/hostname/
+	-> hostnamectl set-hostname info
+
+3 Installation des paquets qui sont necessaire
+-----------------------------------------------
+	-> apt install samba
+	-> apt install krb5-user krb5-conf
+		Le royaume pour administrateur doit etre en majuscule
+			ROYAUME Realm : ULT => royaume ou zone
+		Les deux questions qui restent doivent etre repondu en miniscule
+	-> apt install winbind
+	-> apt install libpam-winbind
+	-> apt install libss-winbind

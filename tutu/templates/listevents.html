@@ -1,0 +1,21 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+	<title>liste des evenements</title>
+</head>
+<body>
+	{% for liste in listes %}
+	<tr>
+					<td>{{ liste.id }}</td>
+	</tr>
+		<ul>
+			<li>{{ liste.cover}} {{ liste.organisateur }}  {{ liste.place}} {{ liste.prix }} <img src="{{ liste.picture.url }}"></li>
+		</ul>
+		<a class="text-danger" href="{% url 'supprimerE' liste.id%}">Supprimer</a><br>
+	{% endfor %}
+
+	<button><a href="{% url 'home' %}">accueil</a></button>
+	<button><a href="{% url 'events' %}">poster un evenement</a> </button>
+</body>
+</html>
